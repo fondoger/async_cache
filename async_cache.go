@@ -1,4 +1,31 @@
-// A golang LRU Cache that cached values are updated asynchronously
+// A golang LRU Cache that cached values are updated asynchronously.
+//
+// Basic Example:
+//	loader := func(key string) (interface{}, error) {
+//		var result string
+//		// write your data loader here
+//		return result, nil
+//	}
+//	cache := NewAsyncCache(10000, time.Hour, time.Minute, loader)
+//	result, err := cache.Get("example_key")
+//	fmt.Println(result, err)
+//
+// Description:
+//
+// - size: The size of LRU cache pool. If memory is enough, a larger
+// size is always better, such as 100000
+//
+// - maxAge: The expire time of cached value. Once the value is cached,
+// `Get` method will always return cached value before expire time.
+//
+// - updateInterval: The asynchronously update interval. We will try to
+// update cached value in each interval. Suggested range is between (0, maxAge/2),
+// of course the smaller, the better.
+// Note the update action is invoked when calling `Get` method, instead of by a timer.
+//
+// - loaderFunc: the data load function. Once the loaderFunc return a <nil> error,
+// the result of loaderFunc will be cached.
+//
 package async_cache
 
 import (
@@ -8,7 +35,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-type CachedVal struct {
+type cachedVal struct {
 	val         interface{}
 	dataTime    time.Time // the data updated time
 	requestTime time.Time // previous LoaderFunc called time
@@ -24,20 +51,6 @@ type AsyncCache struct {
 	DisableLog     bool
 }
 
-// Instructions:
-// * size: The size of LRU cache pool. If memory is enough, a larger
-//   size is always better, such as 100000
-//
-// * maxAge: The expire time of cached value. Once the value is cached,
-//   `Get` method will always return cached value before expire time.
-//
-// * updateInterval: The asynchronously update interval. We will try to
-//   update cached value in each interval. Suggested range is between (0, maxAge/2),
-//   of course the smaller, the better.
-//   Note the update action is invoked when calling `Get` method, instead of by a timer.
-//
-// * loaderFunc: the data load function. Once the loaderFunc return a <nil> error,
-//   the result of loaderFunc will be cached.
 func NewAsyncCache(size int, maxAge time.Duration, updateInterval time.Duration, loaderFunc LoaderFunc) *AsyncCache {
 	if size <= 0 {
 		size = 10000
@@ -56,7 +69,7 @@ func NewAsyncCache(size int, maxAge time.Duration, updateInterval time.Duration,
 func (c *AsyncCache) Get(key string) (interface{}, error) {
 	now := time.Now()
 	if hit, ok := c.Caches.Get(key); ok {
-		value := hit.(*CachedVal)
+		value := hit.(*cachedVal)
 		if now.Sub(value.dataTime) < c.MaxAge {
 			// Note: no lock here, so the loaderFunc might be called
 			// more than once in some extreme cases.
@@ -83,7 +96,7 @@ func (c *AsyncCache) Get(key string) (interface{}, error) {
 
 	result, err := c.LoaderFunc(key)
 	if err == nil {
-		c.Caches.Add(key, &CachedVal{
+		c.Caches.Add(key, &cachedVal{
 			val:         result,
 			dataTime:    time.Now(),
 			requestTime: now,
