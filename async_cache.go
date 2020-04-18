@@ -42,7 +42,7 @@ type cachedVal struct {
 	requestTime time.Time // previous LoaderFunc called time
 }
 
-type LoaderFunc func(key string) (interface{}, error)
+type LoaderFunc func(key interface{}) (interface{}, error)
 
 type AsyncCache struct {
 	Caches         *lru.Cache
@@ -67,7 +67,7 @@ func NewAsyncCache(size int, maxAge time.Duration, updateInterval time.Duration,
 
 // If exists, always get from cache (err == <nil>);
 // If not exists, return the result of LoaderFunc.
-func (c *AsyncCache) Get(key string) (interface{}, error) {
+func (c *AsyncCache) Get(key interface{}) (interface{}, error) {
 	now := time.Now()
 	if hit, ok := c.Caches.Get(key); ok {
 		value := hit.(*cachedVal)
