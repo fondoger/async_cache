@@ -30,6 +30,7 @@ package async_cache
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -103,6 +104,42 @@ func (c *AsyncCache) Get(key string) (interface{}, error) {
 		})
 	}
 	return result, err
+}
+
+func (c *AsyncCache) MGet(keys ...string) (result map[string]interface{}, errors map[string]error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	result = make(map[string]interface{}, len(keys)*2)
+	errors = make(map[string]error, len(keys)*2)
+	now := time.Now()
+	var wg sync.WaitGroup
+	var lock sync.Mutex
+	for _, key := range keys {
+		if hit, ok := c.Caches.Get(key); ok {
+			value := hit.(*cachedVal)
+			if now.Sub(value.dataTime) < c.MaxAge {
+				lock.Lock()
+				result[key] = value.val
+				lock.Unlock()
+				continue
+			}
+		}
+		wg.Add(1)
+		go func(key string) {
+			defer wg.Done()
+			val, err := c.Get(key)
+			lock.Lock()
+			if err != nil {
+				errors[key] = err
+			} else {
+				result[key] = val
+			}
+			lock.Unlock()
+		}(key)
+	}
+	wg.Wait()
+	return result, errors
 }
 
 func (c *AsyncCache) ClearAll() {

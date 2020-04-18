@@ -59,3 +59,11 @@ func TestAsyncCache(t *testing.T) {
 		}
 	}
 }
+
+func TestMGet(t *testing.T) {
+	cache := NewAsyncCache(100, time.Second, time.Second*2, GetDataRemotely)
+	result, errors := cache.MGet("key1", "key2", "key3")
+	if len(errors) != 0 || len(result) != 3 {
+		t.Fatal("has error")
+	}
+}
